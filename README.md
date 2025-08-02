@@ -1,4 +1,4 @@
-Bear's Shit List
+## **Bear's Shit List**
 
 A Windower4 addon for Final Fantasy XI that lets you track and categorize other players based on your experiences with them. 
 Whether someone helped you out or made your life harder, leave yourself a note so you remember next time you run into them.
