@@ -19,3 +19,6 @@ Whether someone helped you out or made your life harder, leave yourself a note s
 ## Commands
 
 Prefix: `//sl`, `//shit`, `//pn`, or `//playernotes`
+
+
+(This was previously called 'Player Notes', and has now been renamed to Shit List. All legacy commands still work)
