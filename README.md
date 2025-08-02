@@ -20,19 +20,41 @@ Whether someone helped you out or made your life harder, leave yourself a note s
 ## Commands
 
 Prefix: `//sl`, `//shit`, `//pn`, or `//playernotes`
+- `add "name" "note"`  
+  Add a note to a player
 
---add "name" "note" - Add note to player
---search "name" - Find player (wildcards supported: , name, *name)
---list <good|bad> - List players in a category
---remove "name" - Delete all notes for a player
---stats - Show summary stats
---sync - Manually sync the database
---on/off - Enable/disable addon overlays
---party on/off - Toggle party member overlay
---target on/off - Toggle target lookup
---highlight on/off - Toggle name highlighting in chat
---savepos - Save overlay positions
---help - Show command list
+- `search "name"`  
+  Find a player (wildcards supported: `*`, `name*`, `*name`)
+
+- `list <good|bad>`  
+  List players in a category
+
+- `remove "name"`  
+  Delete all notes for a player
+
+- `stats`  
+  Show summary stats
+
+- `sync`  
+  Manually sync the database
+
+- `on` / `off`  
+  Enable or disable all addon overlays
+
+- `party on` / `party off`  
+  Toggle party member overlay
+
+- `target on` / `target off`  
+  Toggle target lookup overlay
+
+- `highlight on` / `highlight off`  
+  Toggle name highlighting in chat
+
+- `savepos`  
+  Save overlay positions
+
+- `help`  
+  Show command list
 
 
 ## Usage Examples
