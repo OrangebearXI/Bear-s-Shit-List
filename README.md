@@ -34,6 +34,7 @@ Prefix: `//sl`, `//shit`, `//pn`, or `//playernotes`
 -savepos - Save overlay positions
 -help - Show command list
 
+
 ## Usage Examples
 //sl add "Dramalord" "Aggressive and rude in party chat"
 → Adds a negative note for Dramalord
