@@ -2,7 +2,7 @@ _addon.name = "Bear's Shit List"
 _addon.author = "Orangebear"
 _addon.version = "2.1"
 _addon.commands = {"shitlist", "sl", "shit", "playernotes", "pn"}
-local default_author = "Bear"  -- Change to your preferred default
+local default_author = "OrangeBear"  
 
 -- Name highlighting functionality inspired by Balloon's highlight addon
 
@@ -447,7 +447,6 @@ function create_overlays()
     })
     main_overlay:visible(false)
 
-    -- Party overlay (this one works with stroke)
     party_overlay = texts.new('', {
         pos = {x = settings.party_overlay_pos.x, y = settings.party_overlay_pos.y},
         bg = settings.bg,
@@ -461,7 +460,7 @@ function create_overlays()
     party_overlay:size(10)
     party_overlay:visible(false)
 
-    -- Target overlay (copy the exact same format as party overlay)
+
     target_overlay = texts.new('', {
         pos = {x = settings.target_overlay_pos.x, y = settings.target_overlay_pos.y},
         bg = settings.target_bg,
@@ -775,9 +774,6 @@ function cmd_help()
     windower.add_to_chat(chat_colors.system, "replace \"name\" \"note\"    - Replace entire note for player")
     windower.add_to_chat(chat_colors.system, "search \"name\"            - Find player (wildcards: *, name*, *name)")
     windower.add_to_chat(chat_colors.system, "list <good|bad>           - List players by category")
-    windower.add_to_chat(chat_colors.system, "remove \"name\"            - Delete note for player")
-    windower.add_to_chat(chat_colors.system, "stats                     - Show statistics")
-    windower.add_to_chat(chat_colors.system, "sync                      - Manual sync with other instances")
     windower.add_to_chat(chat_colors.system, "gsync                     - Sync with Google Sheets")
     windower.add_to_chat(chat_colors.system, "sheetsync                 - Sync with Google Sheets (alternative)")
     windower.add_to_chat(chat_colors.system, "on                        - Enable addon (party + target on)")
@@ -788,11 +784,7 @@ function cmd_help()
     windower.add_to_chat(chat_colors.system, "savepos                   - Save overlay positions")
     windower.add_to_chat(chat_colors.system, "help                      - Show this help")
     windower.add_to_chat(chat_colors.system, "")
-    windower.add_to_chat(chat_colors.system, "Categories: positive(good), negative(bad)")
-    windower.add_to_chat(chat_colors.system, "Name highlighting: positive=green, negative=red")
-    windower.add_to_chat(chat_colors.system, "Database syncs automatically across all instances!")
-    windower.add_to_chat(chat_colors.system, "Google Sheets sync requires Python and credentials.json")
-end
+    end
 
 -- Manual sync command (local addon reload)
 function cmd_sync()
@@ -813,7 +805,7 @@ function cmd_sync_external()
     
     -- Check if Python script exists
     if not windower.file_exists(python_script) then
-        windower.add_to_chat(chat_colors.system, "[BSL] ❌ sync_both_directions.py not found in addon folder")
+        windower.add_to_chat(chat_colors.system, "[BSL] sync_both_directions.py not found in addon folder")
         windower.add_to_chat(chat_colors.system, "[BSL] Please make sure the Python script is in: " .. addon_path)
         return
     end
@@ -821,7 +813,7 @@ function cmd_sync_external()
     -- Check if credentials.json exists
     local credentials_file = addon_path .. "credentials.json"
     if not windower.file_exists(credentials_file) then
-        windower.add_to_chat(chat_colors.system, "[BSL] ❌ credentials.json not found in addon folder")
+        windower.add_to_chat(chat_colors.system, "[BSL] credentials.json not found in addon folder")
         windower.add_to_chat(chat_colors.system, "[BSL] Please set up Google Sheets API credentials first")
         return
     end
@@ -844,25 +836,25 @@ function cmd_sync_external()
         
         if cmd_success and result == 0 then
             success = true
-            windower.add_to_chat(chat_colors.system, "[BSL] ✅ Sync completed with " .. python_cmd)
+            windower.add_to_chat(chat_colors.system, "[BSL]  Sync completed with " .. python_cmd)
             break
         elseif cmd_success then
-            windower.add_to_chat(chat_colors.system, "[BSL] ⚠️ " .. python_cmd .. " ran but returned error code: " .. tostring(result))
+            windower.add_to_chat(chat_colors.system, "[BSL] ️ " .. python_cmd .. " ran but returned error code: " .. tostring(result))
         else
-            windower.add_to_chat(chat_colors.system, "[BSL] ❌ " .. python_cmd .. " not found or failed")
+            windower.add_to_chat(chat_colors.system, "[BSL]  " .. python_cmd .. " not found or failed")
         end
     end
     
     if success then
         -- Reload notes after successful sync
-        windower.add_to_chat(chat_colors.system, "[BSL] 🔄 Reloading database...")
+        windower.add_to_chat(chat_colors.system, "[BSL]  Reloading database...")
         load_notes()
         update_party_overlay()
         update_target_overlay()
-        windower.add_to_chat(chat_colors.system, "[BSL] ✅ Google Sheets sync completed successfully!")
+        windower.add_to_chat(chat_colors.system, "[BSL]  Google Sheets sync completed successfully!")
         windower.add_to_chat(chat_colors.system, "[BSL] Database reloaded with any new changes")
     else
-        windower.add_to_chat(chat_colors.system, "[BSL] ❌ Failed to run sync script with any Python command")
+        windower.add_to_chat(chat_colors.system, "[BSL]  Failed to run sync script with any Python command")
         windower.add_to_chat(chat_colors.system, "[BSL] Make sure Python is installed and one of these works:")
         windower.add_to_chat(chat_colors.system, "[BSL] python, python3, or py")
         windower.add_to_chat(chat_colors.system, "[BSL] You can also run sync_both_directions.py manually")
