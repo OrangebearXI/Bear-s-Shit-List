@@ -1,7 +1,8 @@
 _addon.name = "Bear's Shit List"
 _addon.author = "Orangebear"
-_addon.version = "2.0"
+_addon.version = "2.1"
 _addon.commands = {"shitlist", "sl", "shit", "playernotes", "pn"}
+local default_author = "Bear"  -- Change to your preferred default
 
 -- Name highlighting functionality inspired by Balloon's highlight addon
 
@@ -12,13 +13,12 @@ local chat = require("chat")
 -- Paths
 local data_path = windower.addon_path .. "data.lua"
 local settings_path = windower.addon_path .. "settings.lua"
-local shared_data_path = windower.windower_path .. "shitlist_shared.lua"
 
 -- Settings
 local settings = {
     pos = {x = 200, y = 200},
     bg = {red = 0, green = 0, blue = 0, alpha = 0},
-    font = 'Arial',
+    font = 'Segoe UI',
     size = 10,
     color = {red = 255, green = 255, blue = 255, alpha = 255},
     header_color = {red = 120, green = 180, blue = 255, alpha = 255},
@@ -50,7 +50,7 @@ local current_target = ""
 
 -- Chat colors by category
 local chat_colors = {
-    positive = 158,
+    positive = 256,
     negative = 167,
     neutral = 0,
     system = 0
@@ -58,13 +58,21 @@ local chat_colors = {
 
 -- Keywords for auto-categorization
 local keywords = {
-    positive = {"good", "great", "awesome", "helpful", "friendly", "excellent", "reliable", "skilled", "nice", "trust", "cool"},
-    negative = {"bad", "rude", "ninja", "drama", "avoid", "terrible", "awful", "toxic", "grief", "asshole", "dick", "shit", "scammer", "troll", "warning", "watch", "suspicious", "gil seller", "rmt", "bot", "questionable", "careful", "sketchy"}
+    positive = {"good", "great", "awesome", "helpful", "friendly", "excellent", "reliable", "skilled", "nice", "trust",
+    "cool", "amazing", "teamwork", "smart", "fun", "kind", "honest", "fair", "chill", "respectful",
+    "generous", "solid", "pro", "clean", "quick", "aware", "clutch", "focused", "strategic", "supportive",
+    "talented", "communicative", "cooperative", "creative", "dedicated", "consistent", "sportsmanlike", "efficient", "understanding", "motivated",
+    "encouraging", "positive", "calm", "leader", "good vibes", "fast", "sharp", "adaptive", "dependable", "team player"},
+    negative = {"bad", "rude", "drama", "avoid", "terrible", "awful", "toxic", "grief", "asshole",
+    "dick", "shit", "scammer", "troll", "warning", "watch", "suspicious", "bot",
+    "questionable", "careful", "sketchy", "douchebag", "dickhead", "worst", "prick", "spammer", "abusive", "lazy",
+    "selfish", "jerk", "ragequit", "liar", "annoying", "useless", "garbage", "crybaby", "leaver", "noob",
+    "griefer", "shit", "toxic", "whiner", "flamer", "elitist", "timewaster", "childish"}
 }
 
 -- Name highlight colors for chat (using highlight addon color scheme)
 local highlight_colors = {
-    positive = 204,
+    positive = 256,
     negative = 167,
     neutral = 1,
 }
@@ -123,18 +131,6 @@ function truncate(text, max_len)
     return string.len(text) <= max_len and text or (string.sub(text, 1, max_len - 3) .. "...")
 end
 
-function get_latest_note(player_notes)
-    if not player_notes or not player_notes.notes or #player_notes.notes == 0 then
-        return nil
-    end
-    return player_notes.notes[#player_notes.notes]
-end
-
-function get_player_category(player_notes)
-    local latest = get_latest_note(player_notes)
-    return latest and latest.category or "neutral"
-end
-
 function pad(text, length, align)
     local padding = length - string.len(text)
     if padding <= 0 then return text end
@@ -152,8 +148,8 @@ end
 function get_category_counts()
     local counts = {positive = 0, negative = 0, neutral = 0}
     for name, player_data in pairs(notes) do
-        if player_data and player_data.notes and #player_data.notes > 0 then
-            local category = get_player_category(player_data)
+        if player_data and player_data.category then
+            local category = player_data.category
             if category and counts[category] then
                 counts[category] = counts[category] + 1
             else
@@ -230,38 +226,57 @@ function save_settings()
 end
 
 function load_notes()
-    -- Clear existing notes first to ensure clean reload
     notes = {}
-    
-    -- First try to load from shared location
-    local shared_path = shared_data_path
-    if not windower.file_exists(shared_path) then
-        -- Fall back to local file for backwards compatibility
-        shared_path = data_path
-    end
-    
-    if not windower.file_exists(shared_path) then return end
-    
-    local ok, file = pcall(loadfile, shared_path)
+
+    if not windower.file_exists(data_path) then return end
+
+    local ok, file = pcall(loadfile, data_path)
     if not ok or type(file) ~= "function" then return end
-    
+
     local status, data = pcall(file)
     if not status or type(data) ~= "table" then return end
-    
+
     for name, info in pairs(data) do
         local norm_name = normalize_name(name)
         if norm_name ~= "" and type(info) == "table" then
-            if info.note and type(info.note) == "string" then
-                local timestamp = info.timestamp or create_timestamp()
-                local category = info.category or categorize_note(info.note)
-                notes[norm_name] = {
-                    notes = {{
-                        note = info.note,
-                        timestamp = timestamp,
-                        category = category
-                    }}
+
+            -- Handle legacy multi-note format - convert to single note
+            if info.notes and type(info.notes) == "table" and #info.notes > 0 then
+                -- Combine all notes into one longer note
+                local combined_note = ""
+                local latest_timestamp = ""
+                local latest_category = "neutral"
+                local latest_author = default_author
+                
+                for i, note_entry in ipairs(info.notes) do
+                    if type(note_entry) == "table" and note_entry.note then
+                        if i > 1 then
+                            combined_note = combined_note .. " | "
+                        end
+                        combined_note = combined_note .. note_entry.note
+                        
+                        -- Use the latest timestamp/category/author
+                        if i == #info.notes then
+                            latest_timestamp = note_entry.timestamp or create_timestamp()
+                            latest_category = note_entry.category or categorize_note(note_entry.note)
+                            latest_author = note_entry.author or default_author
+                        end
+                    end
+                end
+                
+                info = {
+                    note = combined_note,
+                    timestamp = latest_timestamp,
+                    category = latest_category,
+                    author = latest_author
                 }
-            elseif info.notes and type(info.notes) == "table" then
+            end
+
+            -- Ensure all fields exist
+            if info.note and type(info.note) == "string" then
+                info.timestamp = info.timestamp or create_timestamp()
+                info.category = info.category or categorize_note(info.note)
+                info.author = info.author or default_author
                 notes[norm_name] = info
             end
         end
@@ -269,24 +284,22 @@ function load_notes()
 end
 
 function save_notes()
-    -- Save to shared location so all instances can access
-    local file = io.open(shared_data_path, "w")
+    local file = io.open(data_path, "w")
     if not file then return false end
     
     file:write("return {\n")
     for name, player_data in pairs(notes) do
-        if type(player_data) == "table" and player_data.notes and #player_data.notes > 0 then
+        if type(player_data) == "table" and player_data.note and type(player_data.note) == "string" then
+            local safe_note = player_data.note:gsub("\\", "\\\\"):gsub("\"", "\\\"")
+            local timestamp = player_data.timestamp or create_timestamp()
+            local category = player_data.category or "neutral"
+            local author = player_data.author or default_author
+            
             file:write(string.format("    [\"%s\"] = {\n", name))
-            file:write("        notes = {\n")
-            for _, note_entry in ipairs(player_data.notes) do
-                if type(note_entry) == "table" and type(note_entry.note) == "string" then
-                    local category = note_entry.category or "neutral"
-                    local timestamp = note_entry.timestamp or create_timestamp()
-                    file:write(string.format("            {note = %q, timestamp = \"%s\", category = \"%s\"},\n", 
-                        note_entry.note, timestamp, category))
-                end
-            end
-            file:write("        }\n")
+            file:write(string.format("        note = \"%s\",\n", safe_note))
+            file:write(string.format("        timestamp = \"%s\",\n", timestamp))
+            file:write(string.format("        category = \"%s\",\n", category))
+            file:write(string.format("        author = \"%s\"\n", author))
             file:write("    },\n")
         end
     end
@@ -323,7 +336,7 @@ function update_main_overlay()
     local counts = get_category_counts()
     
     local display = string.format("\\cs(%d,%d,%d)╔══════════════════════════════════════════════════════════════╗\\cr\n", hc.red, hc.green, hc.blue)
-    display = display .. string.format("\\cs(%d,%d,%d)║%s║\\cr\n", hc.red, hc.green, hc.blue, pad("Bear's Shit List v2.0", 62, "center"))
+    display = display .. string.format("\\cs(%d,%d,%d)║%s║\\cr\n", hc.red, hc.green, hc.blue, pad("Bear's Shit List v2.1", 62, "center"))
     display = display .. string.format("\\cs(%d,%d,%d)╠══════════════════════════════════════════════════════════════╣\\cr\n", hc.red, hc.green, hc.blue)
     
     if last_player ~= "" then
@@ -361,7 +374,7 @@ function update_party_overlay()
                 table.insert(party_members, {
                     name = member.name,
                     data = notes[norm_name],
-                    category = get_player_category(notes[norm_name]),
+                    category = notes[norm_name].category or "neutral",
                     is_party = i <= 5
                 })
             end
@@ -375,9 +388,8 @@ function update_party_overlay()
     
     local white = {red = 255, green = 255, blue = 255}
     
-    local text = string.format("\\cs(%d,%d,%d)Shit List\\cr\n", white.red, white.green, white.blue)
-    text = text .. string.format("\\cs(%d,%d,%d)%s\\cr\n", white.red, white.green, white.blue, string.rep("─", 9))
-    
+    local text = string.format("\\cs(%d,%d,%d)Party Shit List\\cr\n", white.red, white.green, white.blue)
+        
     for _, member in ipairs(party_members) do
         local color = get_color(member.category)
         local prefix = member.is_party and "" or "A:"
@@ -414,10 +426,9 @@ function update_target_overlay()
         local norm_name = normalize_name(new_target)
         if notes[norm_name] then
             local player_data = notes[norm_name]
-            local category = get_player_category(player_data)
+            local category = player_data.category or "neutral"
             local color = get_color(category)
-            local latest = get_latest_note(player_data)
-            local note_preview = latest and truncate(latest.note, 30) or ""
+            local note_preview = player_data.note and truncate(player_data.note, 30) or ""
             local text = string.format("\\cs(%d,%d,%d)%s\\cr\n\\cs(200,200,200)%s\\cr", 
                 color.red, color.green, color.blue, capitalize_name(new_target), note_preview)
             target_overlay:text(text)
@@ -436,27 +447,35 @@ function create_overlays()
     })
     main_overlay:visible(false)
 
+    -- Party overlay (this one works with stroke)
     party_overlay = texts.new('', {
         pos = {x = settings.party_overlay_pos.x, y = settings.party_overlay_pos.y},
         bg = settings.bg,
-        font = 'Arial',
+        font = 'Segoe UI',
         size = 10,
-        color = settings.color
+        color = settings.color,
+        flags = {draggable = true},
+        text = {stroke = {width = 2, alpha = 255, red = 0, green = 0, blue = 0}}
     })
-    party_overlay:font('Arial')
+    party_overlay:font('Segoe UI')
     party_overlay:size(10)
     party_overlay:visible(false)
 
+    -- Target overlay (copy the exact same format as party overlay)
     target_overlay = texts.new('', {
         pos = {x = settings.target_overlay_pos.x, y = settings.target_overlay_pos.y},
         bg = settings.target_bg,
-        font = settings.font,
-        size = settings.size,
-        color = settings.color
+        font = 'Segoe UI',
+        size = 10,
+        color = settings.color,
+        flags = {draggable = true},
+        text = {stroke = {width = 2, alpha = 255, red = 0, green = 0, blue = 0}}
     })
+    target_overlay:font('Segoe UI')
+    target_overlay:size(10)
     target_overlay:visible(false)
     
-    windower.add_to_chat(chat_colors.system, "[BSL] Bear's Shit List v2.0 loaded successfully")
+    windower.add_to_chat(chat_colors.system, "[BSL] Bear's Shit List v2.1 loaded successfully")
     
     if settings.addon_enabled then
         update_party_overlay()
@@ -504,29 +523,62 @@ function cmd_add(args)
         windower.add_to_chat(chat_colors.system, '[BSL] Usage: add "playername" "note"')
         return
     end
-    
+
     local name = normalize_name(args[1])
     local display_name = capitalize_name(name)
-    local note = table.concat(args, " ", 2):gsub("\"", "")
+    local new_note = table.concat(args, " ", 2):gsub("\"", "")
     local timestamp = create_timestamp()
-    local category = categorize_note(note)
-    
-    if not notes[name] then
-        notes[name] = {notes = {}}
+    local category = categorize_note(new_note)
+
+    -- If player exists, append to existing note
+    if notes[name] and notes[name].note then
+        local existing_note = notes[name].note
+        new_note = existing_note .. " | " .. new_note
+        -- Re-categorize based on the full combined note
+        category = categorize_note(new_note)
     end
-    
-    table.insert(notes[name].notes, {
-        note = note,
+
+    notes[name] = {
+        note = new_note,
         timestamp = timestamp,
-        category = category
-    })
-    
+        category = category,
+        author = default_author
+    }
+
     save_notes()
-    
-    last_message = "Added note for " .. display_name .. " (Total: " .. #notes[name].notes .. ")"
-    last_player, last_note, last_time, last_category = display_name, note, timestamp, category
-    
-    windower.add_to_chat(get_chat_color(category), string.format('[BSL] Added note for %s: %s (%s)', display_name, note, category))
+
+    last_message = "Updated note for " .. display_name
+    last_player, last_note, last_time, last_category = display_name, new_note, timestamp, category
+
+    windower.add_to_chat(get_chat_color(category), string.format('[BSL] Updated note for %s: %s (%s)', display_name, truncate(new_note, 50), category))
+    update_main_overlay()
+end
+
+function cmd_replace(args)
+    if not args[1] or not args[2] then
+        windower.add_to_chat(chat_colors.system, '[BSL] Usage: replace "playername" "new note"')
+        return
+    end
+
+    local name = normalize_name(args[1])
+    local display_name = capitalize_name(name)
+    local new_note = table.concat(args, " ", 2):gsub("\"", "")
+    local timestamp = create_timestamp()
+    local category = categorize_note(new_note)
+
+    notes[name] = {
+        note = new_note,
+        timestamp = timestamp,
+        category = category,
+        author = default_author
+    }
+
+    save_notes()
+
+    last_message = "Replaced note for " .. display_name
+    last_player, last_note, last_time, last_category = display_name, new_note, timestamp, category
+
+    windower.add_to_chat(get_chat_color(category), string.format('[BSL] Replaced note for %s: %s (%s)', display_name, new_note, category))
     update_main_overlay()
 end
 
@@ -543,21 +595,16 @@ function cmd_search(args)
         local match = matches[1]
         local player_data = match.data
         local display_name = capitalize_name(match.name)
-        local latest = get_latest_note(player_data)
-        local category = get_player_category(player_data)
+        local category = player_data.category or "neutral"
         
-        last_message = "Found: " .. display_name .. " (" .. #player_data.notes .. " notes)"
+        last_message = "Found: " .. display_name
         last_player = display_name
-        last_note = latest and latest.note or ""
-        last_time = latest and latest.timestamp or "unknown"
+        last_note = player_data.note or ""
+        last_time = player_data.timestamp or "unknown"
         last_category = category
         
-        windower.add_to_chat(get_chat_color(category), string.format('[BSL] %s (%d notes):', display_name, #player_data.notes))
-        
-        for i, note_entry in ipairs(player_data.notes) do
-            windower.add_to_chat(get_chat_color(note_entry.category), 
-                string.format('[BSL] %d. %s (%s)', i, note_entry.note, note_entry.category))
-        end
+        windower.add_to_chat(get_chat_color(category), string.format('[BSL] %s (%s):', display_name, category))
+        windower.add_to_chat(get_chat_color(category), string.format('[BSL] %s', player_data.note or "No note"))
         
         update_main_overlay()
     elseif #matches > 1 then
@@ -568,9 +615,8 @@ function cmd_search(args)
                 break
             end
             local display_name = capitalize_name(match.name)
-            local category = get_player_category(match.data)
-            local note_count = #match.data.notes
-            windower.add_to_chat(get_chat_color(category), string.format('[BSL] %s (%s, %d notes)', display_name, category, note_count))
+            local category = match.data.category or "neutral"
+            windower.add_to_chat(get_chat_color(category), string.format('[BSL] %s (%s)', display_name, category))
         end
         last_message = #matches .. " matches found"
         update_main_overlay()
@@ -591,15 +637,15 @@ function cmd_remove(args)
     local display_name = capitalize_name(name)
     
     if notes[name] then
-        local category = get_player_category(notes[name])
+        local category = notes[name].category or "neutral"
         notes[name] = nil
         save_notes()
-        last_message = "Removed all notes for " .. display_name
-        windower.add_to_chat(get_chat_color(category), '[BSL] Removed all notes for ' .. display_name)
+        last_message = "Removed note for " .. display_name
+        windower.add_to_chat(get_chat_color(category), '[BSL] Removed note for ' .. display_name)
         last_player, last_note, last_time, last_category = "", "", "", "neutral"
     else
-        last_message = "No notes found for " .. display_name
-        windower.add_to_chat(chat_colors.system, '[BSL] No notes found for ' .. display_name)
+        last_message = "No note found for " .. display_name
+        windower.add_to_chat(chat_colors.system, '[BSL] No note found for ' .. display_name)
     end
     
     update_main_overlay()
@@ -628,7 +674,7 @@ function cmd_list(args)
     
     local matches = {}
     for name, player_data in pairs(notes) do
-        if get_player_category(player_data) == category then
+        if (player_data.category or "neutral") == category then
             table.insert(matches, {name = name, data = player_data})
         end
     end
@@ -645,8 +691,7 @@ function cmd_list(args)
             break
         end
         local display_name = capitalize_name(match.name)
-        local latest = get_latest_note(match.data)
-        local note_preview = latest and truncate(latest.note, 40) or ""
+        local note_preview = match.data.note and truncate(match.data.note, 40) or ""
         windower.add_to_chat(get_chat_color(category), string.format('[BSL] %s: %s', display_name, note_preview))
     end
 end
@@ -723,15 +768,18 @@ function cmd_savepos()
 end
 
 function cmd_help()
-    windower.add_to_chat(chat_colors.system, "[BSL] Bear's Shit List v2.0 Commands:")
+    windower.add_to_chat(chat_colors.system, "[BSL] Bear's Shit List v2.1 Commands:")
     windower.add_to_chat(chat_colors.system, "Commands work with: //sl, //pn, //shit")
     windower.add_to_chat(chat_colors.system, "")
-    windower.add_to_chat(chat_colors.system, "add \"name\" \"note\"      - Add note to player")
+    windower.add_to_chat(chat_colors.system, "add \"name\" \"note\"        - Add note to player (appends to existing)")
+    windower.add_to_chat(chat_colors.system, "replace \"name\" \"note\"    - Replace entire note for player")
     windower.add_to_chat(chat_colors.system, "search \"name\"            - Find player (wildcards: *, name*, *name)")
     windower.add_to_chat(chat_colors.system, "list <good|bad>           - List players by category")
-    windower.add_to_chat(chat_colors.system, "remove \"name\"            - Delete all notes for player")
+    windower.add_to_chat(chat_colors.system, "remove \"name\"            - Delete note for player")
     windower.add_to_chat(chat_colors.system, "stats                     - Show statistics")
     windower.add_to_chat(chat_colors.system, "sync                      - Manual sync with other instances")
+    windower.add_to_chat(chat_colors.system, "gsync                     - Sync with Google Sheets")
+    windower.add_to_chat(chat_colors.system, "sheetsync                 - Sync with Google Sheets (alternative)")
     windower.add_to_chat(chat_colors.system, "on                        - Enable addon (party + target on)")
     windower.add_to_chat(chat_colors.system, "off                       - Disable addon (party + target off)")
     windower.add_to_chat(chat_colors.system, "party on/off              - Toggle party notes overlay")
@@ -743,9 +791,10 @@ function cmd_help()
     windower.add_to_chat(chat_colors.system, "Categories: positive(good), negative(bad)")
     windower.add_to_chat(chat_colors.system, "Name highlighting: positive=green, negative=red")
     windower.add_to_chat(chat_colors.system, "Database syncs automatically across all instances!")
+    windower.add_to_chat(chat_colors.system, "Google Sheets sync requires Python and credentials.json")
 end
 
--- Manual sync command
+-- Manual sync command (local addon reload)
 function cmd_sync()
     load_notes()
     update_party_overlay()
@@ -753,9 +802,77 @@ function cmd_sync()
     windower.add_to_chat(chat_colors.system, "[BSL] Manually synced database from shared file")
 end
 
+-- External sync command (runs Python script)
+function cmd_sync_external()
+    windower.add_to_chat(chat_colors.system, "[BSL] Starting Google Sheets sync...")
+    windower.add_to_chat(chat_colors.system, "[BSL] This may take a few seconds...")
+    
+    -- Get the addon path to run the Python script from the correct directory
+    local addon_path = windower.addon_path
+    local python_script = addon_path .. "sync_both_directions.py"
+    
+    -- Check if Python script exists
+    if not windower.file_exists(python_script) then
+        windower.add_to_chat(chat_colors.system, "[BSL] ❌ sync_both_directions.py not found in addon folder")
+        windower.add_to_chat(chat_colors.system, "[BSL] Please make sure the Python script is in: " .. addon_path)
+        return
+    end
+    
+    -- Check if credentials.json exists
+    local credentials_file = addon_path .. "credentials.json"
+    if not windower.file_exists(credentials_file) then
+        windower.add_to_chat(chat_colors.system, "[BSL] ❌ credentials.json not found in addon folder")
+        windower.add_to_chat(chat_colors.system, "[BSL] Please set up Google Sheets API credentials first")
+        return
+    end
+    
+    -- Try different Python commands (python, python3, py)
+    local python_commands = {"python", "python3", "py"}
+    local success = false
+    local result = nil
+    
+    for _, python_cmd in ipairs(python_commands) do
+        windower.add_to_chat(chat_colors.system, "[BSL] Trying: " .. python_cmd)
+        
+        -- Build the command to execute - use forward slashes for cross-platform compatibility
+        local command = string.format('cd /d "%s" && %s sync_both_directions.py', addon_path, python_cmd)
+        
+        -- Execute the Python script
+        local cmd_success = pcall(function()
+            result = os.execute(command)
+        end)
+        
+        if cmd_success and result == 0 then
+            success = true
+            windower.add_to_chat(chat_colors.system, "[BSL] ✅ Sync completed with " .. python_cmd)
+            break
+        elseif cmd_success then
+            windower.add_to_chat(chat_colors.system, "[BSL] ⚠️ " .. python_cmd .. " ran but returned error code: " .. tostring(result))
+        else
+            windower.add_to_chat(chat_colors.system, "[BSL] ❌ " .. python_cmd .. " not found or failed")
+        end
+    end
+    
+    if success then
+        -- Reload notes after successful sync
+        windower.add_to_chat(chat_colors.system, "[BSL] 🔄 Reloading database...")
+        load_notes()
+        update_party_overlay()
+        update_target_overlay()
+        windower.add_to_chat(chat_colors.system, "[BSL] ✅ Google Sheets sync completed successfully!")
+        windower.add_to_chat(chat_colors.system, "[BSL] Database reloaded with any new changes")
+    else
+        windower.add_to_chat(chat_colors.system, "[BSL] ❌ Failed to run sync script with any Python command")
+        windower.add_to_chat(chat_colors.system, "[BSL] Make sure Python is installed and one of these works:")
+        windower.add_to_chat(chat_colors.system, "[BSL] python, python3, or py")
+        windower.add_to_chat(chat_colors.system, "[BSL] You can also run sync_both_directions.py manually")
+    end
+end
+
 -- Command routing
 local commands = {
     add = cmd_add,
+    replace = cmd_replace,
     search = cmd_search,
     find = cmd_search,
     list = cmd_list,
@@ -763,6 +880,8 @@ local commands = {
     delete = cmd_remove,
     stats = cmd_stats,
     sync = cmd_sync,
+    gsync = cmd_sync_external,  -- Google Sheets sync
+    sheetsync = cmd_sync_external,  -- Alternative command name
     on = cmd_on,
     off = cmd_off,
     party = cmd_party,
@@ -794,8 +913,8 @@ windower.register_event('incoming text', function(original, modified, original_m
     local new_text = modified
     
     for name, player_data in pairs(notes) do
-        if player_data and player_data.notes and #player_data.notes > 0 then
-            local category = get_player_category(player_data)
+        if player_data and player_data.note then
+            local category = player_data.category or "neutral"
             local display_name = capitalize_name(name)
             
             if category ~= "neutral" then
